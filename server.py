@@ -38,6 +38,7 @@ app = FastAPI(
 )
 
 @app.get("/")
+@app.head("/")
 def index():
     return {
         "status": "online",
@@ -48,6 +49,7 @@ def index():
     }
 
 @app.get("/health")
+@app.head("/health")
 def health():
     slack_health = slack_service.health_check()
     agents = db.get_all_agents()
