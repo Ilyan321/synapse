@@ -174,13 +174,14 @@ class SynapseSlackListener:
         print("="*60 + "\n")
 
         # Initial seed of existing message timestamps to avoid reprocessing old messages
-        initial_msgs = self.fetch_channel_messages(target_channel, limit=20)
+        initial_msgs = self.fetch_channel_messages(target_channel, limit=30)
         for m in initial_msgs:
-            self._processed_message_ts.add(m.get("ts"))
+            if m.get("ts"):
+                self._processed_message_ts.add(m.get("ts"))
 
         while True:
             try:
-                recent_messages = self.fetch_channel_messages(target_channel, limit=10)
+                recent_messages = self.fetch_channel_messages(target_channel, limit=15)
                 for msg in reversed(recent_messages):
                     ts = msg.get("ts")
                     user = msg.get("user")
@@ -188,15 +189,20 @@ class SynapseSlackListener:
                     thread_ts = msg.get("thread_ts")
                     subtype = msg.get("subtype")
 
-                    # Skip already processed, bots, or empty messages
+                    # Skip already processed
                     if not ts or ts in self._processed_message_ts:
                         continue
-                    if user == bot_id or subtype == "bot_message":
-                        self._processed_message_ts.add(ts)
+
+                    # Mark as processed immediately
+                    self._processed_message_ts.add(ts)
+
+                    # Skip bots, app integrations, and system messages (joins, leaves, etc.)
+                    if user == bot_id or subtype is not None or msg.get("bot_id"):
                         continue
 
-                    # Mark as processed
-                    self._processed_message_ts.add(ts)
+                    # Skip slash commands and system-like texts
+                    if text.startswith("/") or "has joined the channel" in text:
+                        continue
 
                     if not text:
                         continue

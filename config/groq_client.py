@@ -143,6 +143,7 @@ class GroqEngine:
                 messages=augmented_messages,
                 model=target_model,
                 temperature=temperature,
+                max_tokens=4000,
                 response_format={"type": "json_object"}
             )
         except Exception as err:
@@ -150,20 +151,63 @@ class GroqEngine:
             raw_json_str = self.chat_completion(
                 messages=augmented_messages,
                 model=target_model,
-                temperature=temperature
+                temperature=temperature,
+                max_tokens=4000
             )
 
+        # Robust parsing of JSON from model output
+        raw_text = raw_json_str.strip()
+        
+        # 1. Direct JSON parse
         try:
-            cleaned = raw_json_str.strip()
-            # Extract JSON substring using regex if wrapped in thoughts or markdown
-            json_match = re.search(r'(\{[\s\S]*\})', cleaned)
+            data = json.loads(raw_text)
+            return response_model.model_validate(data)
+        except Exception:
+            pass
+
+        # 2. Extract from markdown code blocks (```json ... ```)
+        md_matches = re.findall(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
+        for block in reversed(md_matches):
+            try:
+                data = json.loads(block.strip())
+                return response_model.model_validate(data)
+            except Exception:
+                pass
+
+        # 3. Extract balanced JSON objects (handles schemas/thoughts concatenated with output)
+        candidates = []
+        stack = []
+        start_idx = None
+        for idx, char in enumerate(raw_text):
+            if char == '{':
+                if not stack:
+                    start_idx = idx
+                stack.append(char)
+            elif char == '}':
+                if stack:
+                    stack.pop()
+                    if not stack and start_idx is not None:
+                        candidates.append(raw_text[start_idx:idx+1])
+                        start_idx = None
+
+        for cand in reversed(candidates):
+            try:
+                data = json.loads(cand)
+                return response_model.model_validate(data)
+            except Exception:
+                pass
+
+        # 4. Fallback regex
+        try:
+            json_match = re.search(r'(\{[\s\S]*\})', raw_text)
             if json_match:
-                cleaned = json_match.group(1)
-            parsed_dict = json.loads(cleaned)
-            return response_model.model_validate(parsed_dict)
-        except Exception as e:
-            logger.error(f"Failed to parse structured response into {response_model.__name__}: {e}\nRaw: {raw_json_str}")
-            raise e
+                data = json.loads(json_match.group(1))
+                return response_model.model_validate(data)
+        except Exception:
+            pass
+
+        logger.error(f"Failed to parse structured response into {response_model.__name__}:\nRaw: {raw_json_str}")
+        raise ValueError(f"Could not extract valid {response_model.__name__} from LLM response")
 
 # Singleton instance
 groq_engine = GroqEngine()
