@@ -116,6 +116,11 @@ def run_interactive_war_room(topic: str, channel: str = None, team_size: int = 3
 def main():
     parser = argparse.ArgumentParser(description="Synapse Dynamic Multi-Agent War Room Engine")
     parser.add_argument(
+        "--listen", "-l",
+        action="store_true",
+        help="Run the continuous Slack listener daemon to monitor incoming channel messages and thread replies"
+    )
+    parser.add_argument(
         "--prompt", "-p",
         type=str,
         default="Simulate a startup building an AI-powered automated code reviewer detecting security vulnerabilities in real-time",
@@ -141,12 +146,18 @@ def main():
     )
 
     args = parser.parse_args()
-    run_interactive_war_room(
-        topic=args.prompt,
-        channel=args.channel,
-        team_size=args.team_size,
-        turns=args.turns
-    )
+
+    if args.listen:
+        from slack_bot.listener import SynapseSlackListener
+        listener = SynapseSlackListener()
+        listener.start_polling(channel_id=args.channel)
+    else:
+        run_interactive_war_room(
+            topic=args.prompt,
+            channel=args.channel,
+            team_size=args.team_size,
+            turns=args.turns
+        )
 
 if __name__ == "__main__":
     main()
