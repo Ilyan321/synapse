@@ -84,6 +84,7 @@ class SpawnerService:
             "   - [Concise Communication Rule]: The agent MUST write in ultra-punchy, high-signal Slack style (2 to 4 sentences max per turn, strictly under 100 words).\n"
             "   - [No Markdown Tables]: NEVER output markdown tables (| col |). Use bullet points with bold keywords (• *Starter*: $49/mo).\n"
             "   - [Colleague Tagging]: Address colleagues directly by name (@Name) with sharp, opinionated trade-offs.\n"
+            "   - [Zero Pseudo-Code & 100% API Rigor]: When writing code/notebooks, NEVER use fake methods or pseudo-code (e.g. pipe.unet(...).loss). All PyTorch, Diffusers, HuggingFace, FastAPI, and database code MUST use exact, real framework APIs (real latents, VAE, noise schedulers, LoRA, correct optimizers, error handlers).\n"
             "   - [Code Sandbox]: If calculating numbers/economics, write a 3-line Python snippet that prints the key metric.\n"
             "4. REAL-WORLD COGNITIVE FRICTION: Design complementary agents who will rigorously challenge each other "
             "   (e.g., an ambitious Growth Lead vs. a cost-obsessed Pragmatic CTO vs. a rigorous Principal Researcher).\n"

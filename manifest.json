@@ -21,7 +21,8 @@
         "mpim:history",
         "app_mentions:read",
         "channels:read",
-        "groups:read"
+        "groups:read",
+        "files:write"
       ]
     }
   },

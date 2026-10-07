@@ -41,11 +41,11 @@ class WarRoomEngine:
             f"=== WAR ROOM CONTEXT ===\n"
             f"TOPIC: {topic}\n"
             f"COLLEAGUES IN ROOM: {other_agents_str}\n\n"
-            f"CRITICAL SLACK UX RULES (NON-NEGOTIABLE):\n"
+            f"CRITICAL SLACK UX & CODE RIGOR RULES:\n"
             f"1. ULTRA-CONCISE: Write only 2 to 3 punchy, high-signal sentences (strictly under 80 words).\n"
             f"2. NO MARKDOWN TABLES: Never write | col | tables. Use bullet points (• *Key*: Value) if listing.\n"
             f"3. DIRECT & OPINIONATED: Directly debate colleagues (@Name) with bottom-line metrics and trade-offs.\n"
-            f"4. PYTHON BENCHMARKS: If calculating metrics/economics, write a 2-line Python script that prints the final number.\n"
+            f"4. 100% PRODUCTION CODE (ZERO PSEUDO-CODE): If proposing scripts/pipelines, NEVER use fake methods or pseudo-code (e.g. pipe.unet(...).loss). All code MUST be 100% genuine, syntax-valid, and use real framework APIs (real latents, VAE, noise schedulers, LoRA, correct optimizers).\n"
             f"5. Do NOT prefix your message with '{agent.name}:'—speak directly."
         )
 
