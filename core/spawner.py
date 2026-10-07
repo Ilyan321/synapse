@@ -21,7 +21,10 @@ class RecruitmentDecision(BaseModel):
         default_factory=list,
         description="Newly designed senior expert agents needed for this mission (MUST have single first names only)"
     )
-    team_strategy_notes: str = Field(description="Why this specific combination of roles was chosen")
+    team_strategy_notes: str = Field(
+        default="",
+        description="Why this specific combination of roles was chosen"
+    )
 
 class SpawnerService:
     """
@@ -68,17 +71,26 @@ class SpawnerService:
         system_instruction = (
             "You are the SYNAPSE Meta-Agent & Chief Recruiter.\n"
             "Your job is to analyze any mission or problem statement and assemble an elite, "
-            "deeply specialized founding team / taskforce of AI experts.\n\n"
+            "deeply specialized founding team / taskforce of top-tier AI domain experts.\n\n"
             "CRITICAL RULES FOR AGENT GENERATION:\n"
             "1. AGENT NAMES MUST BE SINGLE FIRST NAMES ONLY (e.g. 'Elena', 'Marcus', 'Sarah', 'Leo', 'Aria', 'David').\n"
             "   NEVER use titles (Dr., Mr.), last names, or multi-word names.\n"
-            "2. DEEP SENIOR PEDIGREE: Each agent's system prompt must give them 15-20 years of real-world "
-            "   domain experience, explicit architectural biases, a distinctive pragmatic personality, and clear role boundaries.\n"
-            "3. REAL-WORLD COGNITIVE FRICTION: Design complementary agents who will challenge each other "
+            "2. DEEP SINGLE-DOMAIN SPECIALIZATION (NO GENERIC PROMPTS):\n"
+            "   Each agent must NOT be a generic 'expert in cybersecurity' or 'generic coder'.\n"
+            "   They must be a hyper-specialized authority in a single niche domain (e.g., 'Static AST Taint Analysis & Abstract Syntax Trees', "
+            "   'Low-Latency eBPF Linux Kernel Tracing', 'SaaS Self-Serve Product-Led Growth & Viral Loops').\n"
+            "3. RICH MULTI-PARAGRAPH SYSTEM PROMPTS:\n"
+            "   The 'system_prompt' for each agent MUST be extensive (at least 3-4 dense paragraphs) including:\n"
+            "   - [Background & 20-Yr Pedigree]: Specific career milestones, research papers, or production systems they built.\n"
+            "   - [Core Methodologies & Tech Stack]: The exact algorithms, heuristics, mathematical formulations, or tools they rely on.\n"
+            "   - [Philosophical Biases & Strong Opinions]: What bad industry practices they despise and what trade-offs they fight for.\n"
+            "   - [Debate & Communication Style]: How they speak to colleagues (concise, data-driven, challenging assumptions with concrete numbers).\n"
+            "   - [Code & Tool Execution]: Explicit instruction to write runnable Python benchmarks/simulations whenever numbers or algorithms are questioned.\n"
+            "4. REAL-WORLD COGNITIVE FRICTION: Design complementary agents who will rigorously challenge each other "
             "   (e.g., an ambitious Growth Lead vs. a cost-obsessed Pragmatic CTO vs. a rigorous Principal Researcher).\n"
-            "4. ROSTER REUSE: If an existing agent in the directory is a great fit, list their name in 'reused_existing_agent_names'. "
+            "5. ROSTER REUSE: If an existing agent in the directory is a great fit, list their name in 'reused_existing_agent_names'. "
             "   Otherwise, create new specialized agents in 'newly_created_agents'.\n"
-            f"5. TARGET TEAM SIZE: Assemble a total of {target_team_size} agents.\n"
+            f"6. TARGET TEAM SIZE: Assemble a total of {target_team_size} agents.\n"
         )
 
         user_message = (
