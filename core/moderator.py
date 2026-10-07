@@ -87,26 +87,42 @@ class SmartModerator:
 
         last_msg = chat_history[-1]
 
-        # 1. Check for explicit wrap-up request from user
-        if last_msg.sender_type == "user" and self.check_wrap_up_intent(last_msg.content):
-            return ModeratorDecision(
-                action="conclude",
-                reasoning="User requested meeting conclusion.",
-                is_wrap_up_requested=True
-            )
-
-        # 2. Check for direct @mention in the last message
-        mentioned_agent = self.check_direct_mention(last_msg.content, active_agents)
-        if mentioned_agent:
-            # Prevent self-loop if agent mentioned their own name
-            if last_msg.sender_name != mentioned_agent.name:
+        # 1. User message handling
+        if last_msg.sender_type == "user":
+            if self.check_wrap_up_intent(last_msg.content):
+                return ModeratorDecision(
+                    action="conclude",
+                    reasoning="User explicitly requested meeting conclusion.",
+                    is_wrap_up_requested=True
+                )
+            else:
+                # User provided a new question or directive: ALWAYS delegate to an agent to respond
+                # Check for direct @mention first
+                mentioned_agent = self.check_direct_mention(last_msg.content, active_agents)
+                if mentioned_agent:
+                    return ModeratorDecision(
+                        action="speak",
+                        next_speaker=mentioned_agent.name,
+                        reasoning=f"Directly addressed by founder in '{last_msg.content[:40]}'."
+                    )
+                # Pick the most relevant agent for this new user prompt
+                speaker = active_agents[0].name
                 return ModeratorDecision(
                     action="speak",
-                    next_speaker=mentioned_agent.name,
-                    reasoning=f"Directly addressed by {last_msg.sender_name}."
+                    next_speaker=speaker,
+                    reasoning=f"Answering founder prompt: '{last_msg.content[:50]}'."
                 )
 
-        # 3. Interactive Pausing: If we hit current turn budget without wrap-up, ask the founder to steer
+        # 2. Check for direct @mention between agents
+        mentioned_agent = self.check_direct_mention(last_msg.content, active_agents)
+        if mentioned_agent and last_msg.sender_name != mentioned_agent.name:
+            return ModeratorDecision(
+                action="speak",
+                next_speaker=mentioned_agent.name,
+                reasoning=f"Directly addressed by {last_msg.sender_name}."
+            )
+
+        # 3. Interactive Pausing: If we hit turn budget without wrap-up, ask founder to steer
         if current_turn_count >= max_turn_budget:
             return ModeratorDecision(
                 action="wait_for_user",

@@ -182,7 +182,7 @@ class WarRoomEngine:
             messages=summary_prompt,
             model=settings.groq_agent_model,
             temperature=0.3,
-            max_tokens=600
+            max_tokens=1500
         )
 
         # Conclude in DB
