@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import threading
 import time
 from typing import List, Dict, Any, Optional, Type, TypeVar
@@ -117,40 +118,48 @@ class GroqEngine:
         temperature: float = 0.2
     ) -> T:
         """
-        Enforces structured JSON output matching a Pydantic model with schema injection.
+        Enforces structured JSON output matching a Pydantic model with schema injection
+        and fallback regex parsing.
         """
         target_model = model or settings.groq_router_model
         schema_json = json.dumps(response_model.model_json_schema(), indent=2)
 
-        # Inject strict JSON schema instructions
         schema_instruction = (
-            f"\n\nCRITICAL: You must return ONLY a valid JSON object matching this schema:\n"
+            f"\n\nCRITICAL: Respond ONLY with a valid JSON object matching this schema:\n"
             f"```json\n{schema_json}\n```\n"
-            f"Do not include any explanation or markdown wrapping other than raw JSON."
+            f"You MUST output valid JSON format."
         )
 
-        # Clone messages to avoid mutating caller's list
         augmented_messages = list(messages)
         augmented_messages[-1] = {
             "role": augmented_messages[-1]["role"],
             "content": augmented_messages[-1]["content"] + schema_instruction
         }
 
-        raw_json_str = self.chat_completion(
-            messages=augmented_messages,
-            model=target_model,
-            temperature=temperature,
-            response_format={"type": "json_object"}
-        )
+        # Try with strict response_format first, fallback to text mode if 400
+        raw_json_str = ""
+        try:
+            raw_json_str = self.chat_completion(
+                messages=augmented_messages,
+                model=target_model,
+                temperature=temperature,
+                response_format={"type": "json_object"}
+            )
+        except Exception as err:
+            logger.warning(f"Strict json_object mode failed ({err}). Retrying in standard completion mode with regex extraction...")
+            raw_json_str = self.chat_completion(
+                messages=augmented_messages,
+                model=target_model,
+                temperature=temperature
+            )
 
         try:
-            # Strip markdown if present
             cleaned = raw_json_str.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            parsed_dict = json.loads(cleaned.strip())
+            # Extract JSON substring using regex if wrapped in thoughts or markdown
+            json_match = re.search(r'(\{[\s\S]*\})', cleaned)
+            if json_match:
+                cleaned = json_match.group(1)
+            parsed_dict = json.loads(cleaned)
             return response_model.model_validate(parsed_dict)
         except Exception as e:
             logger.error(f"Failed to parse structured response into {response_model.__name__}: {e}\nRaw: {raw_json_str}")
