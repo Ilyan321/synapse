@@ -20,8 +20,8 @@ class Settings:
             if single_key.strip():
                 self.groq_api_keys.append(single_key.strip())
                 
-        self.groq_router_model: str = os.getenv("GROQ_ROUTER_MODEL", "llama-3.1-8b-instant")
-        self.groq_agent_model: str = os.getenv("GROQ_AGENT_MODEL", "llama-3.3-70b-versatile")
+        self.groq_router_model: str = os.getenv("GROQ_ROUTER_MODEL", "openai/gpt-oss-20b")
+        self.groq_agent_model: str = os.getenv("GROQ_AGENT_MODEL", "openai/gpt-oss-120b")
         
         # 2. Supabase Settings
         self.supabase_url: str = os.getenv("SUPABASE_URL", "")
