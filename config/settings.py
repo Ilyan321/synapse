@@ -34,10 +34,11 @@ class Settings:
         self.slack_default_channel: str = os.getenv("SLACK_DEFAULT_CHANNEL", "C0BERK7RJFP")
         self.slack_team_id: str = os.getenv("SLACK_TEAM_ID", "T0BEYKV1TQU")
         
-        # 4. Sandbox Settings
+        # 4. Sandbox & Model Hub Settings
         self.python_execution_mode: str = os.getenv("PYTHON_EXECUTION_MODE", "subprocess")
         self.e2b_api_key: str = os.getenv("E2B_API_KEY", "")
         self.execution_timeout: int = int(os.getenv("EXECUTION_TIMEOUT_SECONDS", "15"))
+        self.hf_token: str = os.getenv("HF_TOKEN", "")
 
     def validate_foundation(self) -> dict:
         """Validates that all essential Phase 1 foundation keys exist."""
