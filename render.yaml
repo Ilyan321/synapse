@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: synapse-orchestrator
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: GROQ_API_KEYS
+        sync: false
+      - key: GROQ_ROUTER_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_AGENT_MODEL
+        value: openai/gpt-oss-120b
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_DB_PASSWORD
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_DEFAULT_CHANNEL
+        value: C0C7H4V2EP4
+      - key: SLACK_TEAM_ID
+        value: T0BEYKV1TQU
+      - key: HF_TOKEN
+        sync: false
+      - key: EXECUTION_TIMEOUT_SECONDS
+        value: 15
