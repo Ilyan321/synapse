@@ -43,9 +43,10 @@ class WarRoomEngine:
             f"YOUR COLLEAGUES IN THIS ROOM: {other_agents_str}\n\n"
             f"OPERATIONAL GUIDELINES:\n"
             f"1. Stay 100% in character with your deep 20-year domain mastery and technical philosophy.\n"
-            f"2. Keep responses focused, substantive, and concise (2-4 paragraphs maximum).\n"
+            f"2. BE CONCISE & PUNCHY: Keep your visible response to 1-2 short, high-impact paragraphs. "
+            f"   Handle the deep complexity internally and present the bottom-line technical conclusion, concrete metrics, and direct decisions cleanly.\n"
             f"3. Directly address colleague statements by name (e.g. '@Mara', '@Jax') with constructive technical critique or agreement.\n"
-            f"4. If you propose an algorithm, performance benchmark, or test calculation, include a clean runnable Python code block ```python ... ```.\n"
+            f"4. If you propose an algorithm or test calculation, include a clean, minimal runnable Python block ```python ... ```.\n"
             f"5. Do NOT prefix your response with '{agent.name}:'—just speak directly."
         )
 
@@ -68,7 +69,8 @@ class WarRoomEngine:
         agent_name: str
     ) -> ChatMessage:
         """
-        Generates and logs a response from a specific dynamic agent.
+        Generates and logs a response from a specific dynamic agent,
+        and automatically executes any embedded Python benchmarks in the sandbox.
         """
         agent = next((a for a in active_agents if a.name == agent_name), None)
         if not agent:
@@ -85,7 +87,7 @@ class WarRoomEngine:
             max_tokens=1000
         )
 
-        # 1. Save to Supabase
+        # 1. Save agent message to Supabase
         chat_msg = ChatMessage(
             session_id=session.id,
             sender_name=agent.name,
@@ -103,6 +105,41 @@ class WarRoomEngine:
             username=f"{agent.name} ({agent.role.split('(')[0].strip()})",
             icon_emoji=agent.avatar_emoji
         )
+
+        # 3. Autonomous Python Sandbox Execution
+        from tools.python_runner import python_sandbox
+        code_snippet = python_sandbox.extract_python_code(response_text)
+        if code_snippet:
+            logger.info(f"Detected Python code block from {agent.name}. Executing in sandbox...")
+            exec_res = python_sandbox.execute_code(code_snippet)
+            
+            tool_output_content = ""
+            if exec_res.get("success"):
+                output_str = exec_res.get("stdout") or "[Code executed successfully with no stdout]"
+                tool_output_content = f"⚙️ *Sandbox Result:*\n```\n{output_str}\n```"
+            else:
+                err_str = exec_res.get("error") or "Execution failed"
+                tool_output_content = f"⚠️ *Execution Error:*\n```\n{err_str}\n```"
+
+            # Save tool output to Supabase
+            tool_msg = ChatMessage(
+                session_id=session.id,
+                sender_name=f"{agent.name} (Code Sandbox)",
+                sender_role="Python Execution Sandbox",
+                sender_type="tool",
+                content=tool_output_content,
+                tool_calls={"code": code_snippet, "result": exec_res}
+            )
+            self.db.save_message(tool_msg)
+
+            # Post tool output to Slack thread
+            self.slack.post_message(
+                text=tool_output_content,
+                channel=session.slack_channel_id,
+                thread_ts=session.slack_thread_ts,
+                username=f"{agent.name} (Code Runner)",
+                icon_emoji=":gear:"
+            )
 
         return saved_msg
 

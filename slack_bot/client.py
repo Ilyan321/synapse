@@ -47,11 +47,13 @@ class SlackService:
             logger.error("Slack client not initialized.")
             return None
 
+        from core.slack_formatter import markdown_to_slack
+        formatted_text = markdown_to_slack(text)
         target_channel = channel or self.default_channel
 
         payload: Dict[str, Any] = {
             "channel": target_channel,
-            "text": text,
+            "text": formatted_text,
         }
         if thread_ts:
             payload["thread_ts"] = thread_ts
