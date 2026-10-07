@@ -29,7 +29,7 @@ class SynapseSlackListener:
     def get_bot_id(self) -> str:
         if not self._bot_user_id:
             health = self.slack.health_check()
-            self._bot_user_id = health.get("user") or "U0BEWUH8XJM"
+            self._bot_user_id = health.get("user_id") or health.get("bot_id") or health.get("user") or "U0BEWUH8XJM"
         return self._bot_user_id
 
     def fetch_channel_messages(self, channel_id: str, limit: int = 10) -> list:

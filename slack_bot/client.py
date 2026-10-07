@@ -25,6 +25,7 @@ class SlackService:
                 "status": "healthy",
                 "team": auth_res.get("team"),
                 "user": auth_res.get("user"),
+                "user_id": auth_res.get("user_id"),
                 "bot_id": auth_res.get("bot_id"),
                 "team_id": auth_res.get("team_id")
             }
