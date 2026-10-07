@@ -106,37 +106,35 @@ class SmartModerator:
                     reasoning=f"Directly addressed by {last_msg.sender_name}."
                 )
 
-        # 3. Circuit breaker: If we hit max turn budget without new user input, conclude
+        # 3. Interactive Pausing: If we hit current turn budget without wrap-up, ask the founder to steer
         if current_turn_count >= max_turn_budget:
             return ModeratorDecision(
-                action="conclude",
-                reasoning=f"Reached max turn budget ({max_turn_budget} turns). Synthesizing consensus."
+                action="wait_for_user",
+                reasoning=f"Both specialists have staked out their positions on {topic[:40]}."
             )
 
         # 4. LLM-based intelligent speaker selection
         agent_roster_str = "\n".join([f"- {a.name}: {a.role}" for a in active_agents])
         recent_msgs_str = "\n".join([
-            f"[{m.sender_name} ({m.sender_type})]: {m.content[:300]}"
-            for m in chat_history[-6:]
+            f"[{m.sender_name} ({m.sender_type})]: {m.content[:200]}"
+            for m in chat_history[-4:]
         ])
 
         system_instruction = (
             "You are the SYNAPSE War Room Moderator.\n"
-            "Your job is to read the active conversation and select which dynamic expert agent "
-            "should speak next to advance the discussion, challenge technical assumptions, or run benchmarks.\n\n"
+            "Your job is to read the conversation and select the next speaker or ask the founder a question.\n\n"
             "RULES:\n"
             "1. Only choose a name from the ACTIVE AGENTS list.\n"
-            "2. Avoid having the same agent speak twice in a row unless necessary.\n"
-            "3. If consensus has been reached and the objective is met, return action='conclude'.\n"
-            "4. If input is needed from the user, return action='wait_for_user'."
+            "2. Avoid having the same agent speak twice in a row.\n"
+            "3. If both agents have given their initial positions, return action='wait_for_user' with reasoning stating a 1-sentence dilemma for the founder.\n"
+            "4. If the user explicitly requested wrap up, return action='conclude'."
         )
 
         user_prompt = (
-            f"WAR ROOM MISSION: \"{topic}\"\n\n"
+            f"MISSION: \"{topic}\"\n\n"
             f"ACTIVE AGENTS:\n{agent_roster_str}\n\n"
             f"RECENT MESSAGES:\n{recent_msgs_str}\n\n"
-            f"Current turn count in this debate: {current_turn_count}/{max_turn_budget}\n"
-            f"Decide who speaks next."
+            f"Turn {current_turn_count}/{max_turn_budget}. Decide next action."
         )
 
         messages = [

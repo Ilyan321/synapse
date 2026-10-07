@@ -36,24 +36,23 @@ class WarRoomEngine:
         system_prompt = (
             f"YOU ARE {agent.name.upper()}.\n"
             f"YOUR ROLE & MASTERY: {agent.role}\n\n"
-            f"=== YOUR DEEP PERSONA & SYSTEM INSTRUCTIONS ===\n"
+            f"=== YOUR DEEP PERSONA ===\n"
             f"{agent.system_prompt}\n\n"
             f"=== WAR ROOM CONTEXT ===\n"
-            f"TOPIC / MISSION: {topic}\n"
-            f"YOUR COLLEAGUES IN THIS ROOM: {other_agents_str}\n\n"
-            f"OPERATIONAL GUIDELINES:\n"
-            f"1. Stay 100% in character with your deep 20-year domain mastery and technical philosophy.\n"
-            f"2. BE CONCISE & PUNCHY: Keep your visible response to 1-2 short, high-impact paragraphs. "
-            f"   Handle the deep complexity internally and present the bottom-line technical conclusion, concrete metrics, and direct decisions cleanly.\n"
-            f"3. Directly address colleague statements by name (e.g. '@Mara', '@Jax') with constructive technical critique or agreement.\n"
-            f"4. If you propose an algorithm or test calculation, include a clean, minimal runnable Python block ```python ... ```.\n"
-            f"5. Do NOT prefix your response with '{agent.name}:'—just speak directly."
+            f"TOPIC: {topic}\n"
+            f"COLLEAGUES IN ROOM: {other_agents_str}\n\n"
+            f"CRITICAL SLACK UX RULES (NON-NEGOTIABLE):\n"
+            f"1. ULTRA-CONCISE: Write only 2 to 3 punchy, high-signal sentences (strictly under 80 words).\n"
+            f"2. NO MARKDOWN TABLES: Never write | col | tables. Use bullet points (• *Key*: Value) if listing.\n"
+            f"3. DIRECT & OPINIONATED: Directly debate colleagues (@Name) with bottom-line metrics and trade-offs.\n"
+            f"4. PYTHON BENCHMARKS: If calculating metrics/economics, write a 2-line Python script that prints the final number.\n"
+            f"5. Do NOT prefix your message with '{agent.name}:'—speak directly."
         )
 
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Append last 10 messages as dialogue history
-        for msg in chat_history[-10:]:
+        # Append last 8 messages as dialogue history
+        for msg in chat_history[-8:]:
             if msg.sender_name == agent.name:
                 messages.append({"role": "assistant", "content": msg.content})
             else:
@@ -76,7 +75,7 @@ class WarRoomEngine:
         if not agent:
             raise ValueError(f"Agent {agent_name} not found in active roster.")
 
-        history = self.db.get_session_messages(session.id, limit=20)
+        history = self.db.get_session_messages(session.id, limit=15)
         messages = self.build_agent_turn_prompt(agent, session.topic, active_agents, history)
 
         logger.info(f"Agent {agent.name} thinking via {settings.groq_agent_model}...")
@@ -84,7 +83,7 @@ class WarRoomEngine:
             messages=messages,
             model=settings.groq_agent_model,
             temperature=0.6,
-            max_tokens=1000
+            max_tokens=600
         )
 
         # 1. Save agent message to Supabase
@@ -106,40 +105,36 @@ class WarRoomEngine:
             icon_emoji=agent.avatar_emoji
         )
 
-        # 3. Autonomous Python Sandbox Execution
+        # 3. Autonomous Python Sandbox Execution (Silent unless stdout has value)
         from tools.python_runner import python_sandbox
         code_snippet = python_sandbox.extract_python_code(response_text)
         if code_snippet:
             logger.info(f"Detected Python code block from {agent.name}. Executing in sandbox...")
             exec_res = python_sandbox.execute_code(code_snippet)
             
-            tool_output_content = ""
-            if exec_res.get("success"):
-                output_str = exec_res.get("stdout") or "[Code executed successfully with no stdout]"
-                tool_output_content = f"⚙️ *Sandbox Result:*\n```\n{output_str}\n```"
-            else:
-                err_str = exec_res.get("error") or "Execution failed"
-                tool_output_content = f"⚠️ *Execution Error:*\n```\n{err_str}\n```"
+            output_str = exec_res.get("stdout", "").strip()
+            if exec_res.get("success") and output_str:
+                tool_output_content = f"📊 *Calculated Metric:* `{output_str}`"
+                
+                # Save tool output to Supabase
+                tool_msg = ChatMessage(
+                    session_id=session.id,
+                    sender_name=f"{agent.name} (Code Sandbox)",
+                    sender_role="Python Execution Sandbox",
+                    sender_type="tool",
+                    content=tool_output_content,
+                    tool_calls={"code": code_snippet, "result": exec_res}
+                )
+                self.db.save_message(tool_msg)
 
-            # Save tool output to Supabase
-            tool_msg = ChatMessage(
-                session_id=session.id,
-                sender_name=f"{agent.name} (Code Sandbox)",
-                sender_role="Python Execution Sandbox",
-                sender_type="tool",
-                content=tool_output_content,
-                tool_calls={"code": code_snippet, "result": exec_res}
-            )
-            self.db.save_message(tool_msg)
-
-            # Post tool output to Slack thread
-            self.slack.post_message(
-                text=tool_output_content,
-                channel=session.slack_channel_id,
-                thread_ts=session.slack_thread_ts,
-                username=f"{agent.name} (Code Runner)",
-                icon_emoji=":gear:"
-            )
+                # Post clean 1-line badge to Slack
+                self.slack.post_message(
+                    text=tool_output_content,
+                    channel=session.slack_channel_id,
+                    thread_ts=session.slack_thread_ts,
+                    username=f"{agent.name} (Code Runner)",
+                    icon_emoji=":gear:"
+                )
 
         return saved_msg
 
@@ -149,9 +144,9 @@ class WarRoomEngine:
         active_agents: List[AgentProfile]
     ) -> str:
         """
-        Synthesizes the entire multi-agent discussion into a structured executive summary artifact.
+        Synthesizes the entire multi-agent discussion into a concise, 15-second read Executive Flash Brief.
         """
-        history = self.db.get_session_messages(session.id, limit=50)
+        history = self.db.get_session_messages(session.id, limit=30)
         transcript = "\n\n".join([
             f"**{m.sender_name}** ({m.sender_role or m.sender_type}):\n{m.content}"
             for m in history
@@ -161,22 +156,24 @@ class WarRoomEngine:
             {
                 "role": "system",
                 "content": (
-                    "You are an elite Executive Summarizer.\n"
-                    "Synthesize the multi-agent war room debate into a structured, publication-grade "
-                    "Executive Summary Markdown Artifact."
+                    "You are the SYNAPSE Chief of Staff.\n"
+                    "Synthesize the war room debate into a punchy, 15-second read Executive Flash Brief for Slack.\n\n"
+                    "FORMAT RULES:\n"
+                    "- Maximum 15-20 lines total.\n"
+                    "- NO markdown tables.\n"
+                    "- Use clean bullet points and bold section headers:\n"
+                    "  🎯 *Core Problem & Solution* (2 bullets)\n"
+                    "  ⚖️ *Key Strategic Decisions* (2-3 bullets)\n"
+                    "  🚀 *Immediate Next Steps* (2-3 bullets with owners)"
                 )
             },
             {
                 "role": "user",
                 "content": (
-                    f"WAR ROOM TOPIC: \"{session.topic}\"\n\n"
-                    f"PARTICIPANTS: {', '.join([f'{a.name} ({a.role})' for a in active_agents])}\n\n"
-                    f"FULL DEBATE TRANSCRIPT:\n{transcript}\n\n"
-                    f"Please produce a comprehensive Executive Brief with:\n"
-                    f"1. Executive Overview & Core Problem\n"
-                    f"2. Key Architectural & Strategic Consensus\n"
-                    f"3. Crucial Technical Trade-Offs & Debates\n"
-                    f"4. Actionable Next Steps & Implementation Roadmap"
+                    f"MISSION: \"{session.topic}\"\n\n"
+                    f"SPECIALISTS: {', '.join([f'{a.name} ({a.role})' for a in active_agents])}\n\n"
+                    f"TRANSCRIPT:\n{transcript}\n\n"
+                    f"Generate the Executive Flash Brief."
                 )
             }
         ]
@@ -184,7 +181,8 @@ class WarRoomEngine:
         summary_md = self.engine.chat_completion(
             messages=summary_prompt,
             model=settings.groq_agent_model,
-            temperature=0.3
+            temperature=0.3,
+            max_tokens=600
         )
 
         # Conclude in DB
@@ -209,7 +207,7 @@ class WarRoomEngine:
         self,
         session: ThreadSession,
         active_agents: List[AgentProfile],
-        max_turns: int = 4
+        max_turns: int = 2
     ) -> List[ChatMessage]:
         """
         Runs the automated conversation cycle until Moderator concludes or pauses.
@@ -232,6 +230,14 @@ class WarRoomEngine:
                 self.generate_executive_summary(session, active_agents)
                 break
             elif decision.action == "wait_for_user":
+                # Prompt user for input
+                self.slack.post_message(
+                    text=f"💡 *Founder Decision:* {decision.reasoning}\n_Reply in thread to steer the team, or say \"Wrap up\" to conclude._",
+                    channel=session.slack_channel_id,
+                    thread_ts=session.slack_thread_ts,
+                    username="Synapse Moderator",
+                    icon_emoji=":speech_balloon:"
+                )
                 break
             elif decision.action == "speak" and decision.next_speaker:
                 msg = self.execute_turn(session, active_agents, decision.next_speaker)

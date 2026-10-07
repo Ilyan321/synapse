@@ -175,9 +175,17 @@ class SynapseSlackListener:
 
         # Initial seed of existing message timestamps to avoid reprocessing old messages
         initial_msgs = self.fetch_channel_messages(target_channel, limit=30)
+        self._active_thread_ts: Set[str] = set()
         for m in initial_msgs:
             if m.get("ts"):
                 self._processed_message_ts.add(m.get("ts"))
+                if m.get("reply_count", 0) > 0:
+                    self._active_thread_ts.add(m.get("ts"))
+                    # Seed existing thread replies
+                    replies = self.fetch_thread_replies(target_channel, m.get("ts"))
+                    for r in replies:
+                        if r.get("ts"):
+                            self._processed_message_ts.add(r.get("ts"))
 
         while True:
             try:
@@ -186,17 +194,21 @@ class SynapseSlackListener:
                     ts = msg.get("ts")
                     user = msg.get("user")
                     text = msg.get("text", "").strip()
-                    thread_ts = msg.get("thread_ts")
                     subtype = msg.get("subtype")
+                    reply_count = msg.get("reply_count", 0)
 
-                    # Skip already processed
+                    # Track threads with replies
+                    if reply_count > 0 and ts:
+                        self._active_thread_ts.add(ts)
+
+                    # Skip already processed top-level messages
                     if not ts or ts in self._processed_message_ts:
                         continue
 
-                    # Mark as processed immediately
+                    # Mark top-level message as processed immediately
                     self._processed_message_ts.add(ts)
 
-                    # Skip bots, app integrations, and system messages (joins, leaves, etc.)
+                    # Skip bots and system messages
                     if user == bot_id or subtype is not None or msg.get("bot_id"):
                         continue
 
@@ -207,12 +219,34 @@ class SynapseSlackListener:
                     if not text:
                         continue
 
-                    # Case A: Follow-up reply inside an existing thread
-                    if thread_ts and thread_ts != ts:
-                        self.handle_thread_followup(target_channel, thread_ts, text, ts)
-                    # Case B: Brand new top-level prompt in channel
-                    else:
-                        self.handle_new_user_mission(target_channel, text, ts)
+                    # New top-level prompt in channel
+                    self._active_thread_ts.add(ts)
+                    self.handle_new_user_mission(target_channel, text, ts)
+
+                # Poll replies for active threads
+                for t_ts in list(self._active_thread_ts):
+                    thread_replies = self.fetch_thread_replies(target_channel, t_ts)
+                    for r_msg in thread_replies:
+                        r_ts = r_msg.get("ts")
+                        r_user = r_msg.get("user")
+                        r_text = r_msg.get("text", "").strip()
+                        r_subtype = r_msg.get("subtype")
+
+                        # Skip parent message or already processed replies
+                        if not r_ts or r_ts == t_ts or r_ts in self._processed_message_ts:
+                            continue
+
+                        self._processed_message_ts.add(r_ts)
+
+                        # Skip bot replies
+                        if r_user == bot_id or r_subtype is not None or r_msg.get("bot_id"):
+                            continue
+
+                        if not r_text:
+                            continue
+
+                        # Process user follow-up reply inside thread
+                        self.handle_thread_followup(target_channel, t_ts, r_text, r_ts)
 
             except Exception as e:
                 logger.error(f"Error in polling loop: {e}")
